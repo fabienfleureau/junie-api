@@ -1,5 +1,17 @@
 # Junie API Proxy
 
+> [!WARNING]
+> This is a reverse-engineered proxy of JetBrains Junie/Grazie AI API. It is not supported by JetBrains, and may break unexpectedly. Use at your own risk.
+
+> [!WARNING]
+> **JetBrains Terms of Service:**
+> Use of JetBrains AI services is subject to the [JetBrains AI Service Terms of Service](https://www.jetbrains.com/legal/docs/terms/jetbrains-ai-service/).
+> Excessive automated or scripted use may violate these terms and could result in suspension of your account or access.
+>
+> This proxy is intended for personal use with your own JetBrains/Junie subscription. Please use responsibly.
+
+---
+
 > A proxy for the JetBrains Junie/Grazie AI API that exposes it as an OpenAI and Anthropic compatible service. Use your Junie subscription with any tool that supports these APIs, including [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview).
 
 ## Features

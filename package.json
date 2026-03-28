@@ -9,6 +9,7 @@
     "grazie",
     "openai-compatible"
   ],
+  "license": "MIT",
   "author": "ffleureau",
   "type": "module",
   "bin": {
