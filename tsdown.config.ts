@@ -2,7 +2,13 @@ import { defineConfig } from "tsdown"
 
 export default defineConfig({
   entry: ["src/main.ts"],
-  format: "esm",
+  format: ["esm"],
+  target: "es2022",
+  platform: "node",
+  sourcemap: true,
   clean: true,
-  dts: false,
+  banner: { js: "#!/usr/bin/env node" },
+  env: {
+    NODE_ENV: "production",
+  },
 })

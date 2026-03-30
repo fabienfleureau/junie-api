@@ -1,8 +1,6 @@
 export interface State {
   // JetBrains auth token (JWT from OAuth flow or API key)
   authToken?: string
-  // Grazie API token (obtained from auth.grazie.ai)
-  grazieToken?: string
   // Refresh token for JetBrains OAuth
   refreshToken?: string
   // Available models

@@ -22,62 +22,29 @@
 - **Multiple Auth Methods**: JetBrains OAuth device flow or direct API key
 - **Rate Limiting**: Control API usage with `--rate-limit` and `--wait` options
 
-## Prerequisites
-
-- [Bun](https://bun.sh/) (>= 1.2.x)
-- JetBrains account with Junie subscription
-
-## Installation
+## Quick Start
 
 ```sh
-bun install
+npx junie-api
 ```
 
-## Authentication
+That's it — the first run will guide you through JetBrains OAuth. The server starts on `http://localhost:4141`.
 
-### Option 1: JetBrains OAuth (Interactive)
+### With Claude Code
 
 ```sh
-bun run start
-# or
-bun run ./src/main.ts start
+npx junie-api --claude-code
 ```
 
-This will start the OAuth device flow. Visit the URL shown and enter the code.
-
-### Option 2: API Key
-
-Get your API key from [junie.jetbrains.com/cli](https://junie.jetbrains.com/cli), then:
+### With an API key
 
 ```sh
-bun run ./src/main.ts start --auth-token YOUR_API_KEY
+npx junie-api --auth-token YOUR_API_KEY
 ```
 
-### Auth Only (no server)
+Get your key from [junie.jetbrains.com/cli](https://junie.jetbrains.com/cli).
 
-```sh
-bun run ./src/main.ts auth
-```
-
-## Usage
-
-### Start the server
-
-```sh
-# Basic
-bun run ./src/main.ts start
-
-# Custom port with verbose logging
-bun run ./src/main.ts start --port 8080 --verbose
-
-# With rate limiting (30s between requests)
-bun run ./src/main.ts start --rate-limit 30 --wait
-
-# With Claude Code integration
-bun run ./src/main.ts start --claude-code
-```
-
-### API Endpoints
+## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -85,13 +52,9 @@ bun run ./src/main.ts start --claude-code
 | `GET /v1/models` | GET | List available models |
 | `POST /v1/messages` | POST | Anthropic-compatible messages |
 
-### Using with Claude Code
+### Claude Code Setup
 
-```sh
-bun run ./src/main.ts start --claude-code
-```
-
-Or manually configure `.claude/settings.json`:
+Use the `--claude-code` flag, or manually add to `.claude/settings.json`:
 
 ```json
 {
@@ -106,9 +69,16 @@ Or manually configure `.claude/settings.json`:
 }
 ```
 
-## Command Line Options
+## CLI Reference
 
-### Start Command
+```sh
+npx junie-api                          # Start server (default)
+npx junie-api start                    # Same as above
+npx junie-api start --port 8080 -v     # Custom port, verbose
+npx junie-api start --rate-limit 30 -w # Rate limit: 30s, wait
+npx junie-api start --claude-code      # With Claude Code setup
+npx junie-api auth                     # Authenticate only
+```
 
 | Option | Description | Default | Alias |
 |--------|-------------|---------|-------|
@@ -120,20 +90,29 @@ Or manually configure `.claude/settings.json`:
 | --wait | Wait instead of error on rate limit | false | -w |
 | --claude-code | Generate Claude Code launch command | false | -c |
 
-### Auth Command
+## Development
 
-| Option | Description | Default | Alias |
-|--------|-------------|---------|-------|
-| --verbose | Enable verbose logging | false | -v |
-| --show-token | Show tokens during auth | false | |
+```sh
+npm install
+npm run build       # Build with tsdown
+npm test            # Run tests
+npm run dev         # Dev with --watch
+npm run typecheck   # TypeScript check
+```
 
 ## Architecture
 
-This proxy follows the same architecture as [copilot-api](https://github.com/ericc-ch/copilot-api):
+Two routing paths:
 
-1. **Auth**: JetBrains OAuth device flow or API key → obtain access token
-2. **Proxy**: Receive OpenAI/Anthropic format requests → forward to Grazie API (`api.jetbrains.ai`)
-3. **Translation**: Anthropic requests are translated to OpenAI format before forwarding, responses are translated back
+### Anthropic Native Passthrough (`/v1/messages` with `claude-*` models)
+- Forwards requests to the upstream Anthropic-compatible endpoint
+- Sanitizes unknown fields before forwarding (e.g., `context_management`)
+- Streaming: pipes upstream SSE directly to client
+
+### Translation Path (`/v1/messages` with non-Claude models, `/v1/chat/completions`)
+- Translates Anthropic format → OpenAI format → Grazie native protocol
+- Wraps in `{ profile, chat: { messages } }` for the Grazie gateway
+- Translates responses back to the requested format
 
 ## License
 

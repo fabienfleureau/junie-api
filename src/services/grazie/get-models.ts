@@ -1,6 +1,22 @@
-import { GRAZIE_API, getGrazieHeaders } from "~/lib/api-config.js"
-import { state } from "~/lib/state.js"
-import invariant from "tiny-invariant"
+/**
+ * Known Grazie/Junie AI models.
+ * Anthropic models use native IDs (MITM-confirmed) and go through native passthrough.
+ * Google/OpenAI models use Grazie LLMProfileIDs and go through the translation path.
+ */
+export const KNOWN_MODELS = [
+  // Anthropic — native IDs, passthrough to /v1/messages
+  { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", provider: "anthropic" as const },
+  { id: "claude-opus-4-6", name: "Claude Opus 4.6", provider: "anthropic" as const },
+
+  // Google — Grazie LLMProfileIDs, translation path
+  { id: "google-chat-gemini-pro-2.5", name: "Gemini 2.5 Pro", provider: "google" as const },
+  { id: "google-chat-gemini-flash-2.5", name: "Gemini 2.5 Flash", provider: "google" as const },
+
+  // OpenAI — Grazie LLMProfileIDs, translation path
+  { id: "openai-gpt4.1", name: "OpenAI GPT-4.1", provider: "openai" as const },
+  { id: "openai-gpt4.1-mini", name: "OpenAI GPT-4.1 Mini", provider: "openai" as const },
+  { id: "openai-gpt-4o", name: "OpenAI GPT-4o", provider: "openai" as const },
+] as const
 
 export interface ModelsResponse {
   object: "list"
@@ -12,20 +28,14 @@ export interface ModelsResponse {
   }>
 }
 
-export async function getModels(): Promise<ModelsResponse> {
-  const token = state.grazieToken ?? state.authToken
-  invariant(token, "No authentication token available")
-
-  const url = `${GRAZIE_API.baseUrl}${GRAZIE_API.modelsPath}`
-
-  const response = await fetch(url, {
-    headers: getGrazieHeaders(token),
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to get models: ${response.status} ${text}`)
+export function getModels(): ModelsResponse {
+  return {
+    object: "list",
+    data: KNOWN_MODELS.map((m) => ({
+      id: m.id,
+      object: "model" as const,
+      created: 0,
+      owned_by: m.id.split("-")[0],
+    })),
   }
-
-  return response.json()
 }

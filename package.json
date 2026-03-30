@@ -20,10 +20,12 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "dev": "bun run --watch ./src/main.ts",
+    "dev": "node --watch --import tsx ./src/main.ts",
     "lint": "eslint --cache",
-    "start": "NODE_ENV=production bun run ./src/main.ts",
-    "typecheck": "tsc"
+    "prepack": "npm run build",
+    "start": "NODE_ENV=production node ./dist/main.js",
+    "typecheck": "tsc",
+    "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "citty": "^0.1.6",
@@ -38,6 +40,7 @@
   "devDependencies": {
     "@types/bun": "^1.2.23",
     "tsdown": "^0.15.6",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

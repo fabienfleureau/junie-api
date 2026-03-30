@@ -1,9 +1,57 @@
-import type { AnthropicStreamEventData, AnthropicStreamState } from "./anthropic-types.js"
-import { mapOpenAIStopReasonToAnthropic } from "./utils.js"
+import type { AnthropicResponse, AnthropicStreamEventData, AnthropicStreamState } from "./anthropic-types.js"
 
-interface ChatCompletionChunk {
-  id: string
-  model: string
+/**
+ * Grazie V9 SSE data format.
+ * Each SSE event contains an LLMData with type discriminators.
+ */
+interface GrazieLLMData {
+  content?: { text?: string }
+  functionCall?: { id?: string; name?: string; arguments?: string }
+  finishMetadata?: { finishReason?: string }
+  quotaMetadata?: {
+    promptTokens?: number
+    completionTokens?: number
+    promptTokensDetails?: { cachedTokens?: number }
+  }
+}
+
+function isOpenAIChunk(data: unknown): boolean {
+  return typeof data === "object" && data !== null && "choices" in data
+}
+
+function isGrazieLLMData(data: unknown): boolean {
+  return typeof data === "object" && data !== null
+    && !("choices" in data)
+}
+
+function mapGrazieFinishReason(reason?: string): "end_turn" | "max_tokens" | "tool_use" | null {
+  if (!reason) return null
+  if (reason === "stop" || reason === "end_turn") return "end_turn"
+  if (reason === "length" || reason === "max_tokens") return "max_tokens"
+  if (reason === "tool_calls" || reason === "tool_use") return "tool_use"
+  return "end_turn"
+}
+
+export function translateChunkToAnthropicEvents(
+  chunk: unknown,
+  state: AnthropicStreamState,
+): Array<AnthropicStreamEventData> {
+  // Handle OpenAI format (from BYOK endpoint)
+  if (isOpenAIChunk(chunk)) {
+    return translateOpenAIChunk(chunk as OpenAIChunk, state)
+  }
+
+  // Handle Grazie native format
+  if (isGrazieLLMData(chunk)) {
+    return translateGrazieChunk(chunk as GrazieLLMData, state)
+  }
+
+  return []
+}
+
+interface OpenAIChunk {
+  id?: string
+  model?: string
   choices: Array<{
     delta: {
       content?: string
@@ -13,7 +61,7 @@ interface ChatCompletionChunk {
         function?: { name?: string; arguments?: string }
       }>
     }
-    finish_reason: "stop" | "length" | "tool_calls" | "content_filter" | null
+    finish_reason: string | null
   }>
   usage?: {
     prompt_tokens?: number
@@ -22,137 +70,103 @@ interface ChatCompletionChunk {
   }
 }
 
-function isToolBlockOpen(state: AnthropicStreamState): boolean {
-  if (!state.contentBlockOpen) return false
-  return Object.values(state.toolCalls).some(
-    (tc) => tc.anthropicBlockIndex === state.contentBlockIndex,
-  )
-}
-
-export function translateChunkToAnthropicEvents(
-  chunk: ChatCompletionChunk,
+function translateOpenAIChunk(
+  chunk: OpenAIChunk,
   state: AnthropicStreamState,
 ): Array<AnthropicStreamEventData> {
   const events: Array<AnthropicStreamEventData> = []
-
   if (chunk.choices.length === 0) return events
-
   const choice = chunk.choices[0]
   const { delta } = choice
+
+  if (!state.messageStartSent) {
+    events.push({ type: "message_start", message: { id: chunk.id ?? "", type: "message", role: "assistant", content: [], model: chunk.model ?? "", stop_reason: null, stop_sequence: null, usage: { input_tokens: 0, output_tokens: 0 } } })
+    state.messageStartSent = true
+  }
+
+  if (delta.content) {
+    if (state.contentBlockOpen && Object.values(state.toolCalls).some(tc => tc.anthropicBlockIndex === state.contentBlockIndex)) {
+      events.push({ type: "content_block_stop", index: state.contentBlockIndex })
+      state.contentBlockIndex++
+      state.contentBlockOpen = false
+    }
+    if (!state.contentBlockOpen) {
+      events.push({ type: "content_block_start", index: state.contentBlockIndex, content_block: { type: "text", text: "" } })
+      state.contentBlockOpen = true
+    }
+    events.push({ type: "content_block_delta", index: state.contentBlockIndex, delta: { type: "text_delta", text: delta.content } })
+  }
+
+  if (choice.finish_reason) {
+    if (state.contentBlockOpen) { events.push({ type: "content_block_stop", index: state.contentBlockIndex }); state.contentBlockOpen = false }
+    const stopMap: Record<string, AnthropicResponse["stop_reason"]> = { stop: "end_turn", length: "max_tokens", tool_calls: "tool_use" }
+    events.push({ type: "message_delta", delta: { stop_reason: stopMap[choice.finish_reason] ?? "end_turn", stop_sequence: null }, usage: { output_tokens: chunk.usage?.completion_tokens ?? 0 } }, { type: "message_stop" })
+  }
+  return events
+}
+
+function translateGrazieChunk(
+  data: GrazieLLMData,
+  state: AnthropicStreamState,
+): Array<AnthropicStreamEventData> {
+  const events: Array<AnthropicStreamEventData> = []
 
   if (!state.messageStartSent) {
     events.push({
       type: "message_start",
       message: {
-        id: chunk.id,
-        type: "message",
-        role: "assistant",
-        content: [],
-        model: chunk.model,
-        stop_reason: null,
-        stop_sequence: null,
-        usage: {
-          input_tokens:
-            (chunk.usage?.prompt_tokens ?? 0)
-            - (chunk.usage?.prompt_tokens_details?.cached_tokens ?? 0),
-          output_tokens: 0,
-          ...(chunk.usage?.prompt_tokens_details?.cached_tokens !== undefined && {
-            cache_read_input_tokens: chunk.usage.prompt_tokens_details.cached_tokens,
-          }),
-        },
+        id: `msg_${Date.now()}`, type: "message", role: "assistant", content: [],
+        model: "", stop_reason: null, stop_sequence: null,
+        usage: { input_tokens: 0, output_tokens: 0 },
       },
     })
     state.messageStartSent = true
   }
 
-  if (delta.content) {
-    if (isToolBlockOpen(state)) {
-      events.push({ type: "content_block_stop", index: state.contentBlockIndex })
-      state.contentBlockIndex++
-      state.contentBlockOpen = false
+  // Text content
+  if (data.content?.text) {
+    if (state.contentBlockOpen) {
+      const isTool = Object.values(state.toolCalls).some(tc => tc.anthropicBlockIndex === state.contentBlockIndex)
+      if (isTool) {
+        events.push({ type: "content_block_stop", index: state.contentBlockIndex })
+        state.contentBlockIndex++
+        state.contentBlockOpen = false
+      }
     }
-
     if (!state.contentBlockOpen) {
-      events.push({
-        type: "content_block_start",
-        index: state.contentBlockIndex,
-        content_block: { type: "text", text: "" },
-      })
+      events.push({ type: "content_block_start", index: state.contentBlockIndex, content_block: { type: "text", text: "" } })
       state.contentBlockOpen = true
     }
-
-    events.push({
-      type: "content_block_delta",
-      index: state.contentBlockIndex,
-      delta: { type: "text_delta", text: delta.content },
-    })
+    events.push({ type: "content_block_delta", index: state.contentBlockIndex, delta: { type: "text_delta", text: data.content.text } })
   }
 
-  if (delta.tool_calls) {
-    for (const toolCall of delta.tool_calls) {
-      if (toolCall.id && toolCall.function?.name) {
-        if (state.contentBlockOpen) {
-          events.push({ type: "content_block_stop", index: state.contentBlockIndex })
-          state.contentBlockIndex++
-          state.contentBlockOpen = false
-        }
-
-        const anthropicBlockIndex = state.contentBlockIndex
-        state.toolCalls[toolCall.index] = {
-          id: toolCall.id,
-          name: toolCall.function.name,
-          anthropicBlockIndex,
-        }
-
-        events.push({
-          type: "content_block_start",
-          index: anthropicBlockIndex,
-          content_block: {
-            type: "tool_use",
-            id: toolCall.id,
-            name: toolCall.function.name,
-            input: {},
-          },
-        })
-        state.contentBlockOpen = true
+  // Tool call
+  if (data.functionCall) {
+    if (data.functionCall.id && data.functionCall.name) {
+      if (state.contentBlockOpen) {
+        events.push({ type: "content_block_stop", index: state.contentBlockIndex })
+        state.contentBlockIndex++
+        state.contentBlockOpen = false
       }
-
-      if (toolCall.function?.arguments) {
-        const info = state.toolCalls[toolCall.index]
-        if (info) {
-          events.push({
-            type: "content_block_delta",
-            index: info.anthropicBlockIndex,
-            delta: { type: "input_json_delta", partial_json: toolCall.function.arguments },
-          })
-        }
+      const idx = state.contentBlockIndex
+      state.toolCalls[idx] = { id: data.functionCall.id, name: data.functionCall.name, anthropicBlockIndex: idx }
+      events.push({ type: "content_block_start", index: idx, content_block: { type: "tool_use", id: data.functionCall.id, name: data.functionCall.name, input: {} } })
+      state.contentBlockOpen = true
+    }
+    if (data.functionCall.arguments) {
+      const info = Object.values(state.toolCalls).find(tc => tc.anthropicBlockIndex === state.contentBlockIndex)
+      if (info) {
+        events.push({ type: "content_block_delta", index: info.anthropicBlockIndex, delta: { type: "input_json_delta", partial_json: data.functionCall.arguments } })
       }
     }
   }
 
-  if (choice.finish_reason) {
-    if (state.contentBlockOpen) {
-      events.push({ type: "content_block_stop", index: state.contentBlockIndex })
-      state.contentBlockOpen = false
-    }
-
+  // Finish
+  if (data.finishMetadata) {
+    if (state.contentBlockOpen) { events.push({ type: "content_block_stop", index: state.contentBlockIndex }); state.contentBlockOpen = false }
+    const usage = data.quotaMetadata
     events.push(
-      {
-        type: "message_delta",
-        delta: {
-          stop_reason: mapOpenAIStopReasonToAnthropic(choice.finish_reason),
-          stop_sequence: null,
-        },
-        usage: {
-          input_tokens:
-            (chunk.usage?.prompt_tokens ?? 0)
-            - (chunk.usage?.prompt_tokens_details?.cached_tokens ?? 0),
-          output_tokens: chunk.usage?.completion_tokens ?? 0,
-          ...(chunk.usage?.prompt_tokens_details?.cached_tokens !== undefined && {
-            cache_read_input_tokens: chunk.usage.prompt_tokens_details.cached_tokens,
-          }),
-        },
-      },
+      { type: "message_delta", delta: { stop_reason: mapGrazieFinishReason(data.finishMetadata.finishReason), stop_sequence: null }, usage: { input_tokens: (usage?.promptTokens ?? 0) - (usage?.promptTokensDetails?.cachedTokens ?? 0), output_tokens: usage?.completionTokens ?? 0 } },
       { type: "message_stop" },
     )
   }

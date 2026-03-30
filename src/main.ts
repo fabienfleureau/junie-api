@@ -94,6 +94,10 @@ const main = defineCommand({
     start: startCommand,
     auth: authCommand,
   },
+  async run() {
+    // Default: start the server
+    await start({ port: 4141, verbose: false, showToken: false, rateLimit: undefined, wait: false, claudeCode: false })
+  },
 })
 
 runMain(main)

@@ -1,4 +1,5 @@
 import type { Context } from "hono"
+import type { ContentfulStatusCode } from "hono/utils/http-status"
 import consola from "consola"
 import { streamSSE, type SSEMessage } from "hono/streaming"
 import { checkRateLimit } from "~/lib/rate-limit.js"
@@ -13,16 +14,15 @@ export async function handleCompletion(c: Context) {
     await checkRateLimit()
 
     const payload = await c.req.json<ChatCompletionsPayload>()
-    consola.debug("Request payload:", JSON.stringify(payload).slice(-400))
 
     const response = await createChatCompletions(payload)
 
     if (!response.ok) {
       const text = await response.text()
-      consola.error(`Grazie API error: ${response.status} ${text}`)
+      consola.error(`Grazie API error: ${response.status} ${text.slice(0, 200)}`)
       return c.json(
         { error: { message: text, type: "upstream_error", code: response.status } },
-        { status: response.status as 400 },
+        { status: response.status as ContentfulStatusCode },
       )
     }
 
