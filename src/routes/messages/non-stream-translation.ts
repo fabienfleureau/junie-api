@@ -175,6 +175,7 @@ interface OpenAIChoice {
     }>
   }
   finish_reason: "stop" | "length" | "tool_calls" | "content_filter" | null
+  finish_details?: { type: string }
 }
 
 interface OpenAIChatCompletionResponse {
@@ -193,7 +194,10 @@ export function translateToAnthropic(
 ): AnthropicResponse {
   const allTextBlocks: Array<AnthropicTextBlock> = []
   const allToolUseBlocks: Array<AnthropicToolUseBlock> = []
-  let stopReason: OpenAIChoice["finish_reason"] = response.choices[0]?.finish_reason ?? null
+  const firstChoice = response.choices[0]
+  let stopReason: OpenAIChoice["finish_reason"] = firstChoice?.finish_reason
+    ?? (firstChoice?.finish_details?.type as OpenAIChoice["finish_reason"])
+    ?? null
 
   for (const choice of response.choices) {
     if (choice.message.content) {
@@ -211,8 +215,9 @@ export function translateToAnthropic(
       }
     }
 
-    if (choice.finish_reason === "tool_calls" || stopReason === "stop") {
-      stopReason = choice.finish_reason
+    const reason = choice.finish_reason ?? (choice.finish_details?.type as OpenAIChoice["finish_reason"]) ?? null
+    if (reason === "tool_calls" || stopReason === "stop") {
+      stopReason = reason
     }
   }
 

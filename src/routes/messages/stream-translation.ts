@@ -62,6 +62,7 @@ interface OpenAIChunk {
       }>
     }
     finish_reason: string | null
+    finish_details?: { type: string }
   }>
   usage?: {
     prompt_tokens?: number
@@ -97,10 +98,11 @@ function translateOpenAIChunk(
     events.push({ type: "content_block_delta", index: state.contentBlockIndex, delta: { type: "text_delta", text: delta.content } })
   }
 
-  if (choice.finish_reason) {
+  const finishReason = choice.finish_reason ?? choice.finish_details?.type ?? null
+  if (finishReason) {
     if (state.contentBlockOpen) { events.push({ type: "content_block_stop", index: state.contentBlockIndex }); state.contentBlockOpen = false }
     const stopMap: Record<string, AnthropicResponse["stop_reason"]> = { stop: "end_turn", length: "max_tokens", tool_calls: "tool_use" }
-    events.push({ type: "message_delta", delta: { stop_reason: stopMap[choice.finish_reason] ?? "end_turn", stop_sequence: null }, usage: { output_tokens: chunk.usage?.completion_tokens ?? 0 } }, { type: "message_stop" })
+    events.push({ type: "message_delta", delta: { stop_reason: stopMap[finishReason] ?? "end_turn", stop_sequence: null }, usage: { output_tokens: chunk.usage?.completion_tokens ?? 0 } }, { type: "message_stop" })
   }
   return events
 }
