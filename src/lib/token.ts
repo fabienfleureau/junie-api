@@ -42,6 +42,28 @@ export function saveAuthToken(token: string, refreshToken?: string): void {
 }
 
 /**
+ * Decode JWT `exp` claim and return seconds until expiry.
+ * Returns undefined if the token is not a JWT or has no `exp`.
+ */
+export function getJwtExpiresIn(token: string): number | undefined {
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return undefined
+
+    // Base64url decode the payload
+    let payload = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+    while (payload.length % 4) payload += "="
+    const json = Buffer.from(payload, "base64").toString("utf-8")
+    const claims = JSON.parse(json)
+
+    if (typeof claims.exp !== "number") return undefined
+    return Math.max(0, claims.exp - Math.floor(Date.now() / 1000))
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Set up automatic token refresh.
  * JetBrains OAuth tokens expire; this auto-refreshes using the refresh token.
  */

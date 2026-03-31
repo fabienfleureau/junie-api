@@ -4,12 +4,13 @@ import clipboard from "clipboardy"
 import invariant from "tiny-invariant"
 
 import { state } from "./lib/state.js"
-import { setupAuthTokenFromFile, saveAuthToken } from "./lib/token.js"
+import { setupAuthTokenFromFile, saveAuthToken, setupTokenRefresh, getJwtExpiresIn } from "./lib/token.js"
 import { generateEnvScript } from "./lib/shell.js"
 import { runAuthFlow } from "./auth.js"
 import { server } from "./server.js"
 import { KNOWN_MODELS } from "./services/grazie/get-models.js"
 import { validateIngrazzioToken } from "./services/grazie/get-grazie-token.js"
+import { refreshAccessToken } from "./services/jetbrains/poll-token.js"
 
 interface StartOptions {
   port: number
@@ -44,14 +45,52 @@ export async function start(options: StartOptions): Promise<void> {
     process.exit(1)
   }
 
-  // Show account balance
+  // Schedule token auto-refresh (for saved tokens / --auth-token that skip the OAuth flow)
+  if (state.refreshToken) {
+    const expiresIn = getJwtExpiresIn(state.authToken)
+    if (expiresIn !== undefined) {
+      setupTokenRefresh(expiresIn)
+    }
+  }
+
+  // Validate token by fetching account balance; refresh or re-auth on failure
+  let balanceOk = false
   try {
     const authInfo = await validateIngrazzioToken(state.authToken)
+    balanceOk = true
     if (authInfo.balanceLeft != null) {
       consola.success(`Balance: ${authInfo.balanceLeft.toFixed(2)} ${authInfo.balanceUnit ?? "USD"} (${authInfo.licenseType ?? "unknown"} license)`)
     }
   } catch {
-    consola.warn("Could not fetch account balance")
+    consola.warn("Token validation failed, attempting refresh...")
+  }
+
+  if (!balanceOk && state.refreshToken) {
+    try {
+      const response = await refreshAccessToken(state.refreshToken)
+      saveAuthToken(response.access_token, response.refresh_token)
+      consola.success("Token refreshed")
+
+      const authInfo = await validateIngrazzioToken(state.authToken)
+      balanceOk = true
+      if (authInfo.balanceLeft != null) {
+        consola.success(`Balance: ${authInfo.balanceLeft.toFixed(2)} ${authInfo.balanceUnit ?? "USD"} (${authInfo.licenseType ?? "unknown"} license)`)
+      }
+    } catch {
+      consola.warn("Token refresh failed, starting auth flow...")
+    }
+  }
+
+  if (!balanceOk) {
+    try {
+      await runAuthFlow({ showToken: options.showToken })
+      const authInfo = await validateIngrazzioToken(state.authToken)
+      if (authInfo.balanceLeft != null) {
+        consola.success(`Balance: ${authInfo.balanceLeft.toFixed(2)} ${authInfo.balanceUnit ?? "USD"} (${authInfo.licenseType ?? "unknown"} license)`)
+      }
+    } catch {
+      consola.warn("Could not validate token after re-auth")
+    }
   }
 
   // Load known models

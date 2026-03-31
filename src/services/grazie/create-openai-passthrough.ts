@@ -48,7 +48,6 @@ export async function createOpenAIPassthrough(
   consola.debug(`>> POST ${url} (openai passthrough)`)
   consola.debug(`>> Headers: ${JSON.stringify(redactHeaders(headers))}`)
   consola.debug(`>> Model: ${payload.model} → ${body.model}, stream: ${payload.stream ?? false}`)
-
   const startTime = Date.now()
   const response = await fetch(url, {
     method: "POST",
