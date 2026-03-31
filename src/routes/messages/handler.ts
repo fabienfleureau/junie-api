@@ -69,25 +69,27 @@ async function handleAnthropicPassthrough(c: Context, payload: AnthropicMessages
     let buffer = ""
     let pendingEventType: string | undefined
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split("\n")
-      buffer = lines.pop() ?? ""
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
 
-      for (const line of lines) {
-        // Relay SSE lines verbatim: "event: <type>" and "data: <json>"
-        if (line.startsWith("event: ")) {
-          pendingEventType = line.slice(7).trim()
-        } else if (line.startsWith("data: ")) {
-          const data = line.slice(6)
-          await stream.writeSSE({ event: pendingEventType ?? "message", data })
-          pendingEventType = undefined
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            pendingEventType = line.slice(7).trim()
+          } else if (line.startsWith("data: ")) {
+            const data = line.slice(6)
+            await stream.writeSSE({ event: pendingEventType ?? "message", data })
+            pendingEventType = undefined
+          }
         }
-        // Skip empty lines (SSE separators) and comments
       }
+    } catch (error) {
+      consola.warn(`[${payload.model}] Upstream stream closed unexpectedly:`, (error as Error).message)
     }
   })
 }
@@ -140,33 +142,37 @@ async function handleTranslatedRequest(c: Context, payload: AnthropicMessagesPay
     const decoder = new TextDecoder()
     let buffer = ""
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split("\n")
-      buffer = lines.pop() ?? ""
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
 
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue
-        const data = line.slice(6)
-        if (data === "[DONE]") break
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          const data = line.slice(6)
+          if (data === "[DONE]") break
 
-        try {
-          const chunk = JSON.parse(data)
-          const events = translateChunkToAnthropicEvents(chunk, streamState)
+          try {
+            const chunk = JSON.parse(data)
+            const events = translateChunkToAnthropicEvents(chunk, streamState)
 
-          for (const event of events) {
-            await stream.writeSSE({
-              event: event.type,
-              data: JSON.stringify(event),
-            })
+            for (const event of events) {
+              await stream.writeSSE({
+                event: event.type,
+                data: JSON.stringify(event),
+              })
+            }
+          } catch (e) {
+            consola.debug("Failed to parse streaming chunk:", data, e)
           }
-        } catch (e) {
-          consola.debug("Failed to parse streaming chunk:", data, e)
         }
       }
+    } catch (error) {
+      consola.warn(`[${payload.model}] Upstream stream closed unexpectedly:`, (error as Error).message)
     }
   })
 }
