@@ -12,7 +12,8 @@ export const KNOWN_MODELS = [
   { id: "google-chat-gemini-pro-2.5", name: "Gemini 2.5 Pro", provider: "google" as const },
   { id: "google-chat-gemini-flash-2.5", name: "Gemini 2.5 Flash", provider: "google" as const },
 
-  // OpenAI — Grazie LLMProfileIDs, translation path
+  // OpenAI — passthrough to /v1/chat/completions (MITM-confirmed 2026-03-31)
+  // Grazie profile IDs are mapped to upstream OpenAI model names in api-config.ts
   { id: "openai-gpt4.1", name: "OpenAI GPT-4.1", provider: "openai" as const },
   { id: "openai-gpt4.1-mini", name: "OpenAI GPT-4.1 Mini", provider: "openai" as const },
   { id: "openai-gpt-4o", name: "OpenAI GPT-4o", provider: "openai" as const },

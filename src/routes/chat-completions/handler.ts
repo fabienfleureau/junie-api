@@ -4,10 +4,12 @@ import consola from "consola"
 import { streamSSE, type SSEMessage } from "hono/streaming"
 import { checkRateLimit } from "~/lib/rate-limit.js"
 import { forwardError } from "~/lib/error.js"
+import { isOpenAIModel } from "~/lib/api-config.js"
 import {
   createChatCompletions,
   type ChatCompletionsPayload,
 } from "~/services/grazie/create-chat-completions.js"
+import { createOpenAIPassthrough } from "~/services/grazie/create-openai-passthrough.js"
 
 export async function handleCompletion(c: Context) {
   try {
@@ -15,7 +17,10 @@ export async function handleCompletion(c: Context) {
 
     const payload = await c.req.json<ChatCompletionsPayload>()
 
-    const response = await createChatCompletions(payload)
+    // OpenAI models get native passthrough to ingrazzio; others go through Grazie translation
+    const response = isOpenAIModel(payload.model)
+      ? await createOpenAIPassthrough(payload)
+      : await createChatCompletions(payload)
 
     if (!response.ok) {
       const text = await response.text()

@@ -36,6 +36,28 @@ export const ANTHROPIC_API = {
   messagesPath: "/v1/messages",
 } as const
 
+// OpenAI native passthrough (discovered via MITM capture 2026-03-31)
+// ingrazzio-cloud-prod supports OpenAI /v1/chat/completions directly — no Grazie translation needed.
+export const OPENAI_PASSTHROUGH_API = {
+  baseUrl: "https://ingrazzio-cloud-prod.labs.jb.gg",
+  chatCompletionsPath: "/v1/chat/completions",
+} as const
+
+/**
+ * Map Grazie LLMProfileIDs to actual upstream OpenAI model names.
+ * MITM-confirmed: Junie CLI sends e.g. "gpt-4.1-2025-04-14", not "openai-gpt4.1".
+ */
+const OPENAI_MODEL_MAP: Record<string, string> = {
+  "openai-gpt4.1": "gpt-4.1-2025-04-14",
+  "openai-gpt4.1-mini": "gpt-4.1-mini-2025-04-14",
+  "openai-gpt-4o": "gpt-4o",
+}
+
+/** Resolve a Grazie profile ID to the upstream OpenAI model name, or pass through as-is */
+export function resolveOpenAIModelId(modelId: string): string {
+  return OPENAI_MODEL_MAP[modelId] ?? modelId
+}
+
 export function getGrazieHeaders(token: string): Record<string, string> {
   return {
     "Authorization": `Bearer ${token}`,
@@ -60,7 +82,28 @@ export function getAnthropicPassthroughHeaders(token: string): Record<string, st
   }
 }
 
+/** Headers for OpenAI native passthrough (from MITM capture of Junie CLI v888.219, 2026-03-31) */
+export function getOpenAIPassthroughHeaders(token: string): Record<string, string> {
+  return {
+    "Authorization": `Bearer ${token}`,
+    "Content-Type": "application/json",
+    "Accept": "text/event-stream,application/json",
+    "Accept-Encoding": "identity",
+    "Grazie-Agent": '{"name":"junie:cli","version":"888.219"}',
+    "X-LLM-Model": "openai",
+    "X-Free-Google-Api": "true",
+    "X-Keep-Path": "true",
+    "Openai-Version": "2020-11-07",
+    "X-Accept-EAP-License": "false",
+  }
+}
+
 /** Check if a model ID should use the Anthropic native passthrough path */
 export function isAnthropicModel(modelId: string): boolean {
   return modelId.startsWith("claude-")
+}
+
+/** Check if a model ID should use the OpenAI native passthrough path */
+export function isOpenAIModel(modelId: string): boolean {
+  return modelId.startsWith("openai-")
 }

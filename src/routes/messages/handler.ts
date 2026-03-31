@@ -4,9 +4,10 @@ import consola from "consola"
 import { streamSSE } from "hono/streaming"
 import { checkRateLimit } from "~/lib/rate-limit.js"
 import { forwardError } from "~/lib/error.js"
-import { isAnthropicModel } from "~/lib/api-config.js"
+import { isAnthropicModel, isOpenAIModel } from "~/lib/api-config.js"
 import { createChatCompletions } from "~/services/grazie/create-chat-completions.js"
 import { createAnthropicPassthrough } from "~/services/grazie/create-anthropic-passthrough.js"
+import { createOpenAIPassthrough } from "~/services/grazie/create-openai-passthrough.js"
 
 import type { AnthropicMessagesPayload, AnthropicStreamState } from "./anthropic-types.js"
 import { translateToAnthropic, translateToOpenAI } from "./non-stream-translation.js"
@@ -99,7 +100,10 @@ async function handleTranslatedRequest(c: Context, payload: AnthropicMessagesPay
   const openAIPayload = translateToOpenAI(payload)
   consola.debug(`[${payload.model}] Translated to OpenAI format`)
 
-  const response = await createChatCompletions(openAIPayload)
+  // OpenAI models use native passthrough to ingrazzio; others go through Grazie translation
+  const response = isOpenAIModel(payload.model)
+    ? await createOpenAIPassthrough(openAIPayload)
+    : await createChatCompletions(openAIPayload)
 
   if (!response.ok) {
     const text = await response.text()
