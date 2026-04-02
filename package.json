@@ -1,6 +1,6 @@
 {
   "name": "junie-api",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Turn JetBrains Junie AI into an OpenAI/Anthropic API compatible server. Usable with Claude Code!",
   "keywords": [
     "proxy",

@@ -1,6 +1,7 @@
 import { defineCommand, runMain } from "citty"
 import { start } from "./start.js"
 import { runAuthFlow } from "./auth.js"
+import { printBalance } from "./balance.js"
 
 const authCommand = defineCommand({
   meta: {
@@ -84,19 +85,52 @@ const startCommand = defineCommand({
   },
 })
 
+const balanceCommand = defineCommand({
+  meta: {
+    name: "balance",
+    description: "Print current account balance",
+  },
+  args: {
+    "auth-token": {
+      type: "string",
+      description: "Provide auth token directly (API key from junie.jetbrains.com/cli or OAuth JWT)",
+      alias: "a",
+    },
+    "show-token": {
+      type: "boolean",
+      description: "Show tokens during auth",
+      default: false,
+    },
+    verbose: {
+      type: "boolean",
+      description: "Show HTTP request/response details",
+      default: false,
+      alias: "v",
+    },
+  },
+  async run({ args }) {
+    await printBalance({ authToken: args["auth-token"], showToken: args["show-token"], verbose: args.verbose })
+  },
+})
+
 const main = defineCommand({
   meta: {
     name: "junie-api",
-    version: "0.1.0",
+    version: "0.2.0",
     description: "Turn JetBrains Junie AI into an OpenAI/Anthropic API compatible server",
   },
   subCommands: {
     start: startCommand,
     auth: authCommand,
+    balance: balanceCommand,
   },
-  async run() {
-    // Default: start the server
-    await start({ port: 4141, verbose: false, showToken: false, rateLimit: undefined, wait: false, claudeCode: false })
+  async setup() {
+    // If no subcommand given, default to starting the server
+    const subcommand = process.argv[2]
+    if (!subcommand || subcommand.startsWith("-")) {
+      await start({ port: 4141, verbose: false, showToken: false, rateLimit: undefined, wait: false, claudeCode: false })
+      process.exit(0)
+    }
   },
 })
 
