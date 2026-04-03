@@ -22,12 +22,28 @@ function sanitizePayload(payload: AnthropicMessagesPayload): Record<string, unkn
   const safe: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(payload)) {
     if (ALLOWED_FIELDS.has(key)) {
-      safe[key] = value
+      safe[key] = key === "system" ? sanitizeSystem(value) : value
     } else {
       consola.debug(`Stripping unknown field from passthrough: ${key}`)
     }
   }
   return safe
+}
+
+/**
+ * Sanitize system blocks: strip unsupported properties from cache_control.
+ * Clients (e.g. Claude Code) may send { type: "ephemeral", scope: "..." } but
+ * the upstream Anthropic API only accepts { type: "ephemeral" }.
+ */
+function sanitizeSystem(system: unknown): unknown {
+  if (!Array.isArray(system)) return system
+  return system.map((block) => {
+    if (typeof block !== "object" || block === null || !("cache_control" in block)) return block
+    const { cache_control, ...rest } = block as Record<string, unknown>
+    if (typeof cache_control !== "object" || cache_control === null) return block
+    const { type } = cache_control as Record<string, unknown>
+    return { ...rest, cache_control: { type } }
+  })
 }
 
 /**
