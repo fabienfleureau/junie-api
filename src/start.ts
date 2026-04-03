@@ -64,7 +64,10 @@ export async function start(options: StartOptions): Promise<void> {
 
     // Probe free Google API tier
     const freeInfo = await probeFreeGoogleApi(state.authToken)
-    if (state.freeGoogleApi) {
+    if (state.freeGoogleApi && freeInfo?.balanceLeft != null && freeInfo.balanceLeft <= 0) {
+      state.freeGoogleApi = false
+      consola.warn(`Free Google API: balance exhausted (${freeInfo.balanceLeft.toFixed(2)} ${freeInfo.balanceUnit ?? "USD"}) — disabled for this session`)
+    } else if (state.freeGoogleApi) {
       consola.success("Free Google API: available")
       if (freeInfo?.balanceLeft != null) {
         consola.info(`  Free tier balance: ${freeInfo.balanceLeft.toFixed(2)} ${freeInfo.balanceUnit ?? "USD"}`)
