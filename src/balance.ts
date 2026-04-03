@@ -2,7 +2,7 @@ import consola from "consola"
 import { state } from "./lib/state.js"
 import { setupAuthTokenFromFile, saveAuthToken } from "./lib/token.js"
 import { runAuthFlow } from "./auth.js"
-import { validateIngrazzioToken, type IngrazzioAuthInfo } from "./services/grazie/get-grazie-token.js"
+import { validateIngrazzioToken, probeFreeGoogleApi, type IngrazzioAuthInfo } from "./services/grazie/get-grazie-token.js"
 import { GRAZIE_API } from "./lib/api-config.js"
 import { refreshAccessToken } from "./services/jetbrains/poll-token.js"
 
@@ -36,6 +36,7 @@ export async function printBalance(options: BalanceOptions): Promise<void> {
   try {
     const authInfo = await fetchBalance(state.authToken, options.verbose)
     printAuthInfo(authInfo)
+    await printFreeGoogleStatus(state.authToken)
     return
   } catch {
     consola.warn("Token validation failed, attempting refresh...")
@@ -49,6 +50,7 @@ export async function printBalance(options: BalanceOptions): Promise<void> {
 
       const authInfo = await fetchBalance(state.authToken, options.verbose)
       printAuthInfo(authInfo)
+      await printFreeGoogleStatus(state.authToken)
       return
     } catch {
       consola.warn("Token refresh failed, starting auth flow...")
@@ -59,6 +61,7 @@ export async function printBalance(options: BalanceOptions): Promise<void> {
   await runAuthFlow({ showToken: options.showToken })
   const authInfo = await fetchBalance(state.authToken!, options.verbose)
   printAuthInfo(authInfo)
+  await printFreeGoogleStatus(state.authToken)
 }
 
 async function fetchBalance(token: string, verbose: boolean): Promise<IngrazzioAuthInfo> {
@@ -99,5 +102,17 @@ function printAuthInfo(authInfo: IngrazzioAuthInfo): void {
 
   if (authInfo.username) {
     consola.info(`Account: ${authInfo.username}`)
+  }
+}
+
+async function printFreeGoogleStatus(token: string): Promise<void> {
+  const freeInfo = await probeFreeGoogleApi(token)
+  if (state.freeGoogleApi) {
+    consola.success("Free Google API: available")
+    if (freeInfo?.balanceLeft != null) {
+      consola.info(`  Free tier balance: ${freeInfo.balanceLeft.toFixed(2)} ${freeInfo.balanceUnit ?? "USD"}`)
+    }
+  } else {
+    consola.warn("Free Google API: unavailable (477 — would be disabled for this session)")
   }
 }

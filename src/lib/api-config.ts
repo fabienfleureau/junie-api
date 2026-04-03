@@ -67,35 +67,37 @@ export function getGrazieHeaders(token: string): Record<string, string> {
 }
 
 /** Headers for Anthropic native passthrough (from MITM capture of Junie CLI v888.219) */
-export function getAnthropicPassthroughHeaders(token: string): Record<string, string> {
-  return {
+export function getAnthropicPassthroughHeaders(token: string, freeGoogleApi: boolean): Record<string, string> {
+  const headers: Record<string, string> = {
     "Authorization": `Bearer ${token}`,
     "Content-Type": "application/json",
     "Accept": "text/event-stream,application/json",
     "Accept-Encoding": "identity",
     "Grazie-Agent": '{"name":"junie:cli","version":"888.219"}',
     "X-LLM-Model": "anthropic",
-    "X-Free-Google-Api": "true",
     "X-Keep-Path": "true",
     "Openai-Version": "2020-11-07",
     "X-Accept-EAP-License": "false",
   }
+  if (freeGoogleApi) headers["X-Free-Google-Api"] = "true"
+  return headers
 }
 
 /** Headers for OpenAI native passthrough (from MITM capture of Junie CLI v888.219, 2026-03-31) */
-export function getOpenAIPassthroughHeaders(token: string): Record<string, string> {
-  return {
+export function getOpenAIPassthroughHeaders(token: string, freeGoogleApi: boolean): Record<string, string> {
+  const headers: Record<string, string> = {
     "Authorization": `Bearer ${token}`,
     "Content-Type": "application/json",
     "Accept": "text/event-stream,application/json",
     "Accept-Encoding": "identity",
     "Grazie-Agent": '{"name":"junie:cli","version":"888.219"}',
     "X-LLM-Model": "openai",
-    "X-Free-Google-Api": "true",
     "X-Keep-Path": "true",
     "Openai-Version": "2020-11-07",
     "X-Accept-EAP-License": "false",
   }
+  if (freeGoogleApi) headers["X-Free-Google-Api"] = "true"
+  return headers
 }
 
 /** Check if a model ID should use the Anthropic native passthrough path */

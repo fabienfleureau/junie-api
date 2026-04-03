@@ -11,10 +11,12 @@ export interface State {
   rateLimitSeconds?: number
   rateLimitWait: boolean
   lastRequestTimestamp?: number
+  freeGoogleApi: boolean
 }
 
 export const state: State = {
   verbose: false,
   showToken: false,
   rateLimitWait: false,
+  freeGoogleApi: true,
 }

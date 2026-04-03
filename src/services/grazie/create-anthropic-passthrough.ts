@@ -49,6 +49,9 @@ function sanitizeSystem(system: unknown): unknown {
 /**
  * Forward an Anthropic /v1/messages request to ingrazzio-cloud-prod.
  * The upstream speaks native Anthropic protocol — only sanitization is needed.
+ *
+ * On 477: disables X-Free-Google-Api for the session and returns 503
+ * so the client (Claude Code) auto-retries without the header.
  */
 export async function createAnthropicPassthrough(
   payload: AnthropicMessagesPayload,
@@ -57,10 +60,10 @@ export async function createAnthropicPassthrough(
   invariant(token, "No authentication token available")
 
   const url = `${ANTHROPIC_API.baseUrl}${ANTHROPIC_API.messagesPath}`
-  const headers = getAnthropicPassthroughHeaders(token)
+  const headers = getAnthropicPassthroughHeaders(token, state.freeGoogleApi)
   const body = sanitizePayload(payload)
 
-  consola.debug(`>> POST ${url} (anthropic passthrough)`)
+  consola.debug(`>> POST ${url} (anthropic passthrough, freeGoogleApi=${state.freeGoogleApi})`)
   consola.debug(`>> Headers: ${JSON.stringify(redactHeaders(headers))}`)
   consola.debug(`>> Model: ${payload.model}, stream: ${payload.stream ?? false}`)
 
@@ -78,6 +81,14 @@ export async function createAnthropicPassthrough(
     const text = await response.text()
     const preview = text.length > 200 ? `${text.slice(0, 200)}...` : text
     consola.debug(`<< Body: ${preview}`)
+
+    // On 477, disable X-Free-Google-Api for the session and return 503 to trigger client retry
+    if (response.status === 477 && state.freeGoogleApi) {
+      consola.warn("477 received — disabling X-Free-Google-Api for this session, returning 503 to trigger retry")
+      state.freeGoogleApi = false
+      return new Response("upstream returned 477, retrying without X-Free-Google-Api", { status: 503 })
+    }
+
     return new Response(text, {
       status: response.status,
       statusText: response.statusText,

@@ -9,7 +9,7 @@ import { generateEnvScript } from "./lib/shell.js"
 import { runAuthFlow } from "./auth.js"
 import { server } from "./server.js"
 import { KNOWN_MODELS } from "./services/grazie/get-models.js"
-import { validateIngrazzioToken } from "./services/grazie/get-grazie-token.js"
+import { validateIngrazzioToken, probeFreeGoogleApi } from "./services/grazie/get-grazie-token.js"
 import { refreshAccessToken } from "./services/jetbrains/poll-token.js"
 
 interface StartOptions {
@@ -60,6 +60,17 @@ export async function start(options: StartOptions): Promise<void> {
     balanceOk = true
     if (authInfo.balanceLeft != null) {
       consola.success(`Balance: ${authInfo.balanceLeft.toFixed(2)} ${authInfo.balanceUnit ?? "USD"} (${authInfo.licenseType ?? "unknown"} license)`)
+    }
+
+    // Probe free Google API tier
+    const freeInfo = await probeFreeGoogleApi(state.authToken)
+    if (state.freeGoogleApi) {
+      consola.success("Free Google API: available")
+      if (freeInfo?.balanceLeft != null) {
+        consola.info(`  Free tier balance: ${freeInfo.balanceLeft.toFixed(2)} ${freeInfo.balanceUnit ?? "USD"}`)
+      }
+    } else {
+      consola.warn("Free Google API: unavailable (477 — disabled for this session)")
     }
   } catch {
     consola.warn("Token validation failed, attempting refresh...")
