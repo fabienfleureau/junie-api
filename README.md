@@ -61,8 +61,8 @@ Use the `--claude-code` flag, or manually add to `.claude/settings.json`:
   "env": {
     "ANTHROPIC_BASE_URL": "http://localhost:4141",
     "ANTHROPIC_AUTH_TOKEN": "dummy",
-    "ANTHROPIC_MODEL": "google/gemini-2.5-pro",
-    "ANTHROPIC_SMALL_FAST_MODEL": "google/gemini-2.5-flash",
+    "ANTHROPIC_MODEL": "claude-opus-4-6",
+    "ANTHROPIC_SMALL_FAST_MODEL": "claude-sonnet-4-6",
     "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
   }
