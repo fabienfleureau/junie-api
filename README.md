@@ -25,7 +25,7 @@
 ## Quick Start
 
 ```sh
-npx junie-api
+bunx junie-api
 ```
 
 That's it — the first run will guide you through JetBrains OAuth. The server starts on `http://localhost:4141`.
@@ -33,13 +33,13 @@ That's it — the first run will guide you through JetBrains OAuth. The server s
 ### With Claude Code
 
 ```sh
-npx junie-api --claude-code
+bunx junie-api --claude-code
 ```
 
 ### With an API key
 
 ```sh
-npx junie-api --auth-token YOUR_API_KEY
+bunx junie-api --auth-token YOUR_API_KEY
 ```
 
 Get your key from [junie.jetbrains.com/cli](https://junie.jetbrains.com/cli).
@@ -72,12 +72,12 @@ Use the `--claude-code` flag, or manually add to `.claude/settings.json`:
 ## CLI Reference
 
 ```sh
-npx junie-api                          # Start server (default)
-npx junie-api start                    # Same as above
-npx junie-api start --port 8080 -v     # Custom port, verbose
-npx junie-api start --rate-limit 30 -w # Rate limit: 30s, wait
-npx junie-api start --claude-code      # With Claude Code setup
-npx junie-api auth                     # Authenticate only
+bunx junie-api                          # Start server (default)
+bunx junie-api start                    # Same as above
+bunx junie-api start --port 8080 -v     # Custom port, verbose
+bunx junie-api start --rate-limit 30 -w # Rate limit: 30s, wait
+bunx junie-api start --claude-code      # With Claude Code setup
+bunx junie-api auth                     # Authenticate only
 ```
 
 | Option | Description | Default | Alias |
@@ -93,11 +93,11 @@ npx junie-api auth                     # Authenticate only
 ## Development
 
 ```sh
-npm install
-npm run build       # Build with tsdown
-npm test            # Run tests
-npm run dev         # Dev with --watch
-npm run typecheck   # TypeScript check
+bun install
+bun run build       # Build with tsdown
+bun test            # Run tests
+bun run dev         # Dev with --watch
+bun run typecheck   # TypeScript check
 ```
 
 ## Architecture

@@ -22,7 +22,7 @@
     "build": "tsdown",
     "dev": "node --watch --import tsx ./src/main.ts",
     "lint": "eslint --cache",
-    "prepack": "npm run build",
+    "prepack": "bun run build",
     "start": "NODE_ENV=production node ./dist/main.js",
     "typecheck": "tsc",
     "test": "node --import tsx --test tests/*.test.ts"

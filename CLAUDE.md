@@ -1,8 +1,8 @@
 # junie-api
 
 ## Build & Test
-- Build: `npm run build` (uses tsdown)
-- Test: `npm test` (Node built-in runner via tsx — bun is NOT installed)
+- Build: `bun run build` (uses tsdown)
+- Test: `bun test` (Node built-in runner via tsx)
 - Dev: `node --watch --import tsx ./src/main.ts`
 
 ## Architecture
